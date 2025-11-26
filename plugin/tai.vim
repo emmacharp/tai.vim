@@ -18,20 +18,43 @@ endif
 "==============================================================================
 " Internal helper: queue a task asynchronously
 "==============================================================================
-function! s:tai_queue_task(task) abort
+function! s:tai_has_tui() abort
+  if !executable('tmux')
+    return 0
+  endif
+
+  let l:root = getcwd()
+  let l:pane_id_file = l:root . '/.tai_bus/tui-pane.id'
+  if !filereadable(l:pane_id_file)
+    return 0
+  endif
+
+  let l:pane_id = trim(readfile(l:pane_id_file)[0])
+  if empty(l:pane_id)
+    return 0
+  endif
+
+  let l:panes = systemlist('tmux list-panes -F "#{pane_id}"')
+  return index(l:panes, l:pane_id) >= 0
+endfunction
+
+function! s:tai_handle_input(task) abort
   if !executable('tai')
-    echohl ErrorMsg | echom "[tai] Cannot queue task: 'tai' is not executable." | echohl None
+    echohl ErrorMsg | echom "[tai] Cannot send task: 'tai' is not executable." | echohl None
     return
   endif
 
-  " If job_start exists (Vim 8+ or Neovim), use async
+  let l:cmd = s:tai_has_tui()
+        \ ? ['tai', 'send', a:task]
+        \ : ['tai', 'task', a:task]
+  let l:message = l:cmd[1] ==# 'send' ? 'sent to tui' : 'task queued'
+
   if exists('*job_start')
-    call job_start(['tai', 'task', a:task])
-    echo "[tai] task queued"
+    call job_start(l:cmd)
+    echo "[tai] " . l:message
   else
-    " Fallback: blocking call on older Vim versions
-    call system(['tai', 'task', a:task])
-    echo "[tai] task sent (blocking mode)"
+    call system(l:cmd)
+    echo "[tai] " . l:message . ' (blocking)'
   endif
 endfunction
 
@@ -39,7 +62,7 @@ endfunction
 " :Tai <text> — Freeform command prompt
 " Usage: :Tai Refactor this file
 "==============================================================================
-command! -nargs=+ Tai call s:tai_queue_task(<q-args>)
+command! -nargs=+ Tai call s:tai_handle_input(<q-args>)
 
 "==============================================================================
 " :TaiVisual — Use the visually selected text as context
@@ -82,7 +105,7 @@ command! -range TaiVisual call s:tai_visual_task()
 "==============================================================================
 " :TaiBuffer — Send entire buffer as context
 "==============================================================================
-command! TaiBuffer call s:tai_queue_task(
+command! TaiBuffer call s:tai_handle_input(
       \ "Here is the entire buffer (" . expand('%:p') . "):\n" .
       \ join(getline(1, '$'), "\n")
       \ )
@@ -91,7 +114,7 @@ command! TaiBuffer call s:tai_queue_task(
 " :TaiFile <task> — Operate on the current file path
 " Example: :TaiFile Add exhaustive error handling
 "==============================================================================
-command! -nargs=+ TaiFile call s:tai_queue_task(
+command! -nargs=+ TaiFile call s:tai_handle_input(
       \ "Edit file: " . expand('%:p') . "\n\nTask: " . <q-args>
       \ )
 
