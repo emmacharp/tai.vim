@@ -125,3 +125,46 @@ command! -nargs=+ TaiFile call s:tai_handle_input(
 " vnoremap <silent> <leader>tv :'<,'>TaiVisual<CR>
 " nnoremap <silent> <leader>tb :TaiBuffer<CR>
 " nnoremap <silent> <leader>tf :TaiFile 
+"
+
+
+function! SendToChat(type) range
+   let l:root = getcwd()
+  let l:pane_id_file = l:root . '/.tai_bus/tui-pane.id' 
+  let l:pane_id = trim(readfile(l:pane_id_file)[0])
+	 let g:chat_pane=l:pane_id
+" Override with let g:chat_pane='%1' (or 'chat:1.0') if you prefer a fixed target.
+    let target = exists('g:chat_pane')
+          \ ? shellescape(g:chat_pane)
+          \ : '$(tmux list-panes -F ''#{pane_active} #{pane_id}'' | awk ''$1==1{print $2}'')'
+
+
+let prompt = input('Prompt (append @f to include file): ')
+    if empty(prompt)
+      echo "No prompt entered"
+      return
+    endif
+
+    let payload = prompt
+    if payload =~ '@f$'
+      let payload = substitute(payload, '@f$', '', '')
+      " Use %:. for cwd-relative; swap to %:p for absolute.
+      let payload .= "\nFILE: " . expand('%:.')
+    endif
+
+    if a:type ==# 'v' || a:type ==# 'char'
+      let payload .= "\n\n" . join(getline("'<", "'>"), "\n")
+    endif
+
+    let cmd = 'target=' . target .
+          \ '; tmux load-buffer -b chatbuf -' .
+          \ '; tmux paste-buffer -p -b chatbuf -t "$target"' .
+          \ '; tmux send-keys -t "$target" C-m'
+
+    call system(cmd, payload)
+  endfunction
+
+  " normal: send current line
+  nnoremap <leader>z :call SendToChat('n')<CR>
+  " visual: send selection
+  xnoremap <leader>z :<C-U>call SendToChat('v')<CR>
