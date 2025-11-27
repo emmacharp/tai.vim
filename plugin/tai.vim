@@ -197,5 +197,5 @@ function! s:send_to_chat(type) range abort
 endfunction
 
 " Optional chat shortcuts (uncomment to use)
-" nnoremap <silent> <leader>z :call <SID>send_to_chat('n')<CR>
+noremap <leader>z :Tai 
 " xnoremap <silent> <leader>z :<C-U>call <SID>send_to_chat('v')<CR>
