@@ -16,6 +16,31 @@ if !executable('tai')
 endif
 
 "==============================================================================
+" Internal helper: find the nearest .tai_bus directory in parent chain
+"==============================================================================
+function! s:find_tai_bus_root() abort
+	let l:dir = getcwd()
+	if empty(l:dir)
+		return ''
+	endif
+
+	while 1
+		let l:candidate = l:dir . '/.tai_bus'
+		if isdirectory(l:candidate)
+			return l:candidate
+		endif
+
+		let l:parent = fnamemodify(l:dir, ':h')
+		if l:parent ==# l:dir
+			break
+		endif
+		let l:dir = l:parent
+	endwhile
+
+	return ''
+endfunction
+
+"==============================================================================
 " Internal helper: queue a task asynchronously
 "==============================================================================
 function! s:tai_has_tui() abort
@@ -23,8 +48,12 @@ function! s:tai_has_tui() abort
 		return 0
 	endif
 
-	let l:root = getcwd()
-	let l:pane_id_file = l:root . '/.tai_bus/tui-pane.id'
+	let l:bus_dir = s:find_tai_bus_root()
+	if empty(l:bus_dir)
+		return 0
+	endif
+
+	let l:pane_id_file = l:bus_dir . '/tui-pane.id'
 	if !filereadable(l:pane_id_file)
 		return 0
 	endif
@@ -99,7 +128,12 @@ function! s:tai_visual_task() range abort
 
 	" Destination directory
 	let l:root = getcwd()
-	let l:req_dir = l:root . "/.tai_bus/requests"
+	let l:bus_dir = s:find_tai_bus_root()
+	if empty(l:bus_dir)
+		let l:req_dir = l:root . "/.tai_bus/requests"
+	else
+		let l:req_dir = l:bus_dir . "/requests"
+	endif
 	call mkdir(l:req_dir, "p")
 
 	" Filename
@@ -141,8 +175,13 @@ function! s:send_payload_to_chat(payload) abort
 		return 0
 	endif
 
-	let l:root = getcwd()
-	let l:pane_id_file = l:root . '/.tai_bus/tui-pane.id'
+	let l:bus_dir = s:find_tai_bus_root()
+	if empty(l:bus_dir)
+		echo "[tai] tui pane id file not found."
+		return 0
+	endif
+
+	let l:pane_id_file = l:bus_dir . '/tui-pane.id'
 	if !filereadable(l:pane_id_file)
 		echo "[tai] tui pane id file not found."
 		return 0
